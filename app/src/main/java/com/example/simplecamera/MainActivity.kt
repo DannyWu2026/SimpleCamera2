@@ -3,9 +3,11 @@ package com.example.simplecamera
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.graphics.PointF
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -16,21 +18,58 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
     private var imageCapture: ImageCapture? = null
+    private var cameraProvider: ProcessCameraProvider? = null
+    private lateinit var cameraExecutor: ExecutorService
+
+    // 摄像头相关
+    private var lensFacing = CameraSelector.LENS_FACING_BACK
+    private var flashMode = ImageCapture.FLASH_MODE_OFF
+
+    private lateinit var flashButton: Button
+    private lateinit var switchCameraButton: Button
+
+    companion object {
+        private const val CAMERA_PERMISSION_CODE = 100
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         previewView = findViewById(R.id.previewView)
+        captureButton = findViewById(R.id.captureButton)
+        flashButton = findViewById(R.id.flashButton)
+        switchCameraButton = findViewById(R.id.switchCameraButton)
 
-        findViewById<Button>(R.id.captureButton).setOnClickListener {
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
+        // 点击屏幕对焦
+        previewView.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_UP) {
+                val x = event.x
+                val y = event.y
+                focusOnTouch(x, y)
+            }
+            true
+        }
+
+        captureButton.setOnClickListener {
             takePhoto()
+        }
+
+        flashButton.setOnClickListener {
+            cycleFlashMode()
+        }
+
+        switchCameraButton.setOnClickListener {
+            switchCamera()
         }
 
         if (checkCameraPermission()) {
@@ -49,7 +88,7 @@ class MainActivity : AppCompatActivity() {
         ActivityCompat.requestPermissions(
             this,
             arrayOf(Manifest.permission.CAMERA),
-            100
+            CAMERA_PERMISSION_CODE
         )
     }
 
@@ -59,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
+        if (requestCode == CAMERA_PERMISSION_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startCamera()
             } else {
@@ -73,24 +112,96 @@ class MainActivity : AppCompatActivity() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+            cameraProvider = cameraProviderFuture.get()
+            bindCameraUseCases()
+        }, ContextCompat.getMainExecutor(this))
+    }
 
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+    private fun bindCameraUseCases() {
+        val provider = cameraProvider ?: return
 
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .build()
+        // 解绑所有用例
+        provider.unbindAll()
 
-            cameraProvider.bindToLifecycle(
+        // 创建预览用例
+        val preview = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
+        // 创建拍照用例
+        imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setFlashMode(flashMode)
+            .build()
+
+        val cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(lensFacing)
+            .build()
+
+        try {
+            provider.bindToLifecycle(
                 this,
-                CameraSelector.DEFAULT_BACK_CAMERA,
+                cameraSelector,
                 preview,
                 imageCapture
             )
+        } catch (e: Exception) {
+            Toast.makeText(this, "启动相机失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-        }, ContextCompat.getMainExecutor(this))
+    // 点击屏幕对焦
+    private fun focusOnTouch(x: Float, y: Float) {
+        val camera = cameraProvider?.getCamera(CameraSelector.Builder()
+            .requireLensFacing(lensFacing)
+            .build())
+        if (camera == null) return
+
+        // 将屏幕坐标转换为 MeteringPoint 坐标
+        val meteringPointFactory = previewView.meteringPointFactory
+        val point = meteringPointFactory.createPoint(x, y)
+
+        // 创建对焦和测光动作
+        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+            .build()
+
+        camera.cameraControl.startFocusAndMetering(action)
+        // 显示对焦反馈
+        Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
+    }
+
+    // 切换闪光灯模式
+    private fun cycleFlashMode() {
+        flashMode = when (flashMode) {
+            ImageCapture.FLASH_MODE_OFF -> {
+                flashButton.text = "🔆"
+                Toast.makeText(this, "闪光灯: 开启", Toast.LENGTH_SHORT).show()
+                ImageCapture.FLASH_MODE_ON
+            }
+            ImageCapture.FLASH_MODE_ON -> {
+                flashButton.text = "✨"
+                Toast.makeText(this, "闪光灯: 自动", Toast.LENGTH_SHORT).show()
+                ImageCapture.FLASH_MODE_AUTO
+            }
+            else -> {
+                flashButton.text = "⚡"
+                Toast.makeText(this, "闪光灯: 关闭", Toast.LENGTH_SHORT).show()
+                ImageCapture.FLASH_MODE_OFF
+            }
+        }
+        imageCapture?.flashMode = flashMode
+    }
+
+    // 切换摄像头
+    private fun switchCamera() {
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+            Toast.makeText(this, "切换到前置摄像头", Toast.LENGTH_SHORT).show()
+            CameraSelector.LENS_FACING_FRONT
+        } else {
+            Toast.makeText(this, "切换到后置摄像头", Toast.LENGTH_SHORT).show()
+            CameraSelector.LENS_FACING_BACK
+        }
+        bindCameraUseCases()
     }
 
     private fun takePhoto() {
@@ -120,9 +231,17 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    Toast.makeText(this@MainActivity, "拍照失败", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "拍照失败: ${exception.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         )
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+    }
+
+    // 需要声明 captureButton 变量
+    private lateinit var captureButton: Button
 }
