@@ -143,17 +143,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun focusOnTouch(x: Float, y: Float) {
-        val camera = cameraProvider?.getCamera(CameraSelector.Builder()
+        val cameraSelector = CameraSelector.Builder()
             .requireLensFacing(lensFacing)
-            .build())
-        if (camera == null) return
+            .build()
+        
+        try {
+            val camera = cameraProvider?.getCamera(cameraSelector)
+            if (camera == null) return
 
-        val meteringPointFactory = previewView.meteringPointFactory
-        val point = meteringPointFactory.createPoint(x, y)
-        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF).build()
+            val meteringPointFactory = previewView.meteringPointFactory
+            val point = meteringPointFactory.createPoint(x, y)
+            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF).build()
 
-        camera.cameraControl.startFocusAndMetering(action)
-        Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
+            camera.cameraControl.startFocusAndMetering(action)
+            Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            // 某些设备可能不支持，忽略
+        }
     }
 
     private fun cycleFlashMode() {
@@ -223,8 +229,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::cameraProvider.isInitialized) {
-            cameraProvider?.unbindAll()
-        }
+        cameraProvider?.unbindAll()
     }
 }
