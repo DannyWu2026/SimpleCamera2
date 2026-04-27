@@ -6,9 +6,16 @@
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:scaleType="fitCenter" />
+        android:layout_height="match_parent"
+        android:scaleType="fitStart" />
+
+    <!-- 黑色闪烁层（初始不可见） -->
+    <View
+        android:id="@+id/flashView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="match_parent"
