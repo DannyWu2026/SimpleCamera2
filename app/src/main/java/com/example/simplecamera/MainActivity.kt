@@ -27,6 +27,7 @@ import java.util.concurrent.Executors
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
+    private lateinit var flashView: View
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
@@ -42,10 +43,15 @@ class MainActivity : AppCompatActivity() {
     // 防抖相关
     private var lastMessageTime = 0L
     private var lastMessageText = ""
-    private val messageDelay = 300L  // 300毫秒内相同消息不重复显示
+    private val messageDelay = 300L
+
+    // 闪烁动画 Handler
+    private val flashHandler = Handler(Looper.getMainLooper())
+    private var flashRunnable: Runnable? = null
 
     companion object {
         private const val CAMERA_PERMISSION_CODE = 100
+        private const val FLASH_DURATION = 80L  // 闪烁时长 80ms
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         previewView = findViewById(R.id.previewView)
+        flashView = findViewById(R.id.flashView)
         captureButton = findViewById(R.id.captureButton)
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
@@ -127,29 +134,24 @@ class MainActivity : AppCompatActivity() {
     private fun bindCameraUseCases() {
         val provider = cameraProvider ?: return
 
-        // 解绑所有用例
         provider.unbindAll()
 
-        // 创建预览用例
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
 
-        // 创建拍照用例 - 最高质量设置
         imageCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .setFlashMode(flashMode)
             .setJpegQuality(100)
             .build()
 
-        // 选择摄像头
         val cameraSelector = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
             CameraSelector.DEFAULT_BACK_CAMERA
         } else {
             CameraSelector.DEFAULT_FRONT_CAMERA
         }
 
-        // 绑定用例并保存 camera 对象用于对焦
         camera = provider.bindToLifecycle(
             this,
             cameraSelector,
@@ -158,7 +160,6 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // 触屏对焦
     private fun focusOnTouch(x: Float, y: Float) {
         val camera = this.camera ?: return
 
@@ -210,8 +211,21 @@ class MainActivity : AppCompatActivity() {
         bindCameraUseCases()
     }
 
+    // 预览画面闪烁效果
+    private fun flashPreview() {
+        flashView.visibility = View.VISIBLE
+        flashRunnable?.let { flashHandler.removeCallbacks(it) }
+        flashRunnable = Runnable {
+            flashView.visibility = View.GONE
+        }
+        flashHandler.postDelayed(flashRunnable!!, FLASH_DURATION)
+    }
+
     private fun takePhoto() {
         val imageCapture = imageCapture ?: return
+
+        // 触发闪烁效果（立即执行，拍照前让用户感受到反馈）
+        flashPreview()
 
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val contentValues = ContentValues().apply {
@@ -228,47 +242,48 @@ class MainActivity : AppCompatActivity() {
             contentValues
         ).build()
 
+        // 拍照并保存，不再显示弹窗
         imageCapture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    showMessage("照片已保存")
+                    // 不显示弹窗，静静保存
                 }
 
                 override fun onError(exception: ImageCaptureException) {
+                    // 只有错误时才显示提示
                     showMessage("拍照失败: ${exception.message}")
                 }
             }
         )
     }
 
-    // Snackbar + 防抖显示消息
+    // Snackbar + 防抖显示消息（仅用于对焦、切换摄像头、闪光灯等）
     private fun showMessage(message: String) {
         val currentTime = System.currentTimeMillis()
-        
-        // 防抖：相同消息在短时间内不重复显示
+
         if (message == lastMessageText && currentTime - lastMessageTime < messageDelay) {
             return
         }
-        
+
         lastMessageTime = currentTime
         lastMessageText = message
-        
-        // 在主线程显示 Snackbar
+
         Handler(Looper.getMainLooper()).post {
             val snackbar = Snackbar.make(
                 findViewById(android.R.id.content),
                 message,
                 Snackbar.LENGTH_SHORT
             )
-            snackbar.setAnchorView(R.id.captureButton)  // 将 Snackbar 显示在按钮上方
+            snackbar.setAnchorView(R.id.captureButton)
             snackbar.show()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        flashRunnable?.let { flashHandler.removeCallbacks(it) }
         cameraExecutor.shutdown()
     }
 }
