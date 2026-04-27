@@ -10,6 +10,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -51,7 +52,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val CAMERA_PERMISSION_CODE = 100
-        private const val FLASH_DURATION = 80L  // 闪烁时长 80ms
+        private const val FLASH_DURATION = 80L
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +64,9 @@ class MainActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.captureButton)
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
+
+        // 设置 PreviewView 高度为屏幕宽度的 3/4（4:3 比例），并顶部对齐
+        adjustPreviewViewSize()
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -91,6 +95,17 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestCameraPermission()
         }
+    }
+
+    private fun adjustPreviewViewSize() {
+        // 获取屏幕宽度
+        val screenWidth = resources.displayMetrics.widthPixels
+        // 4:3 比例，高度 = 宽度 * 3 / 4
+        val previewHeight = screenWidth * 3 / 4
+
+        val layoutParams = previewView.layoutParams
+        layoutParams.height = previewHeight
+        previewView.layoutParams = layoutParams
     }
 
     private fun checkCameraPermission(): Boolean {
@@ -211,7 +226,6 @@ class MainActivity : AppCompatActivity() {
         bindCameraUseCases()
     }
 
-    // 预览画面闪烁效果
     private fun flashPreview() {
         flashView.visibility = View.VISIBLE
         flashRunnable?.let { flashHandler.removeCallbacks(it) }
@@ -224,7 +238,6 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         val imageCapture = imageCapture ?: return
 
-        // 触发闪烁效果（立即执行，拍照前让用户感受到反馈）
         flashPreview()
 
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -242,24 +255,21 @@ class MainActivity : AppCompatActivity() {
             contentValues
         ).build()
 
-        // 拍照并保存，不再显示弹窗
         imageCapture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    // 不显示弹窗，静静保存
+                    // 不显示弹窗
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    // 只有错误时才显示提示
                     showMessage("拍照失败: ${exception.message}")
                 }
             }
         )
     }
 
-    // Snackbar + 防抖显示消息（仅用于对焦、切换摄像头、闪光灯等）
     private fun showMessage(message: String) {
         val currentTime = System.currentTimeMillis()
 
