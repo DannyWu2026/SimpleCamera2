@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.view.MotionEvent
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -17,13 +16,14 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
     private var imageCapture: ImageCapture? = null
-    private var cameraProvider: ProcessCameraProvider? = null
+    private lateinit var cameraExecutor: ExecutorService
 
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var flashMode = ImageCapture.FLASH_MODE_OFF
@@ -45,13 +45,7 @@ class MainActivity : AppCompatActivity() {
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
 
-        // 点击屏幕对焦
-        previewView.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                focusOnTouch(event.x, event.y)
-            }
-            true
-        }
+        cameraExecutor = Executors.newSingleThreadExecutor()
 
         captureButton.setOnClickListener {
             takePhoto()
@@ -105,61 +99,39 @@ class MainActivity : AppCompatActivity() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
-            cameraProvider = cameraProviderFuture.get()
-            bindCameraUseCases()
-        }, ContextCompat.getMainExecutor(this))
-    }
+            val cameraProvider = cameraProviderFuture.get()
 
-    private fun bindCameraUseCases() {
-        val provider = cameraProvider ?: return
+            // 解绑所有用例
+            cameraProvider.unbindAll()
 
-        provider.unbindAll()
+            // 创建预览用例
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
 
-        val preview = Preview.Builder().build().also {
-            it.setSurfaceProvider(previewView.surfaceProvider)
-        }
+            // 创建拍照用例 - 最高质量设置
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setFlashMode(flashMode)
+                .setJpegQuality(100)
+                .build()
 
-        // 创建拍照用例 - 最高质量设置
-        imageCapture = ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .setFlashMode(flashMode)
-            .setJpegQuality(100)
-            .build()
+            // 选择摄像头
+            val cameraSelector = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            } else {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            }
 
-        val cameraSelector = CameraSelector.Builder()
-            .requireLensFacing(lensFacing)
-            .build()
-
-        try {
-            provider.bindToLifecycle(
+            // 绑定用例
+            cameraProvider.bindToLifecycle(
                 this,
                 cameraSelector,
                 preview,
                 imageCapture
             )
-        } catch (e: Exception) {
-            Toast.makeText(this, "启动相机失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
-    private fun focusOnTouch(x: Float, y: Float) {
-        val cameraSelector = CameraSelector.Builder()
-            .requireLensFacing(lensFacing)
-            .build()
-        
-        try {
-            val camera = cameraProvider?.getCamera(cameraSelector)
-            if (camera == null) return
-
-            val meteringPointFactory = previewView.meteringPointFactory
-            val point = meteringPointFactory.createPoint(x, y)
-            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF).build()
-
-            camera.cameraControl.startFocusAndMetering(action)
-            Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            // 某些设备可能不支持，忽略
-        }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun cycleFlashMode() {
@@ -191,7 +163,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "切换到后置摄像头", Toast.LENGTH_SHORT).show()
             CameraSelector.LENS_FACING_BACK
         }
-        bindCameraUseCases()
+        startCamera()  // 重新启动相机
     }
 
     private fun takePhoto() {
@@ -229,6 +201,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cameraProvider?.unbindAll()
+        cameraExecutor.shutdown()
     }
 }
