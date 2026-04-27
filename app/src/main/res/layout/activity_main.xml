@@ -1,53 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
+    <!-- 预览画面：宽度填满，高度按屏幕宽度计算 4:3 比例，顶部对齐 -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitCenter" />
+        android:layout_height="0dp"
+        android:layout_weight="0"
+        android:scaleType="fitXY" />
 
-    <View
-        android:id="@+id/flashView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#000000"
-        android:visibility="gone" />
-
+    <!-- 下方黑色区域：放置按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="horizontal"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
         android:gravity="center"
-        android:padding="16dp"
         android:background="#000000">
 
-        <Button
-            android:id="@+id/flashButton"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:text="⚡"
-            android:textSize="24sp"
-            android:layout_marginEnd="20dp" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="16dp">
 
-        <Button
-            android:id="@+id/captureButton"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:text="拍照"
-            android:textSize="16sp"
-            android:layout_marginEnd="20dp" />
+            <Button
+                android:id="@+id/flashButton"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:text="⚡"
+                android:textSize="24sp"
+                android:layout_marginEnd="20dp" />
 
-        <Button
-            android:id="@+id/switchCameraButton"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:text="🔄"
-            android:textSize="24sp" />
+            <Button
+                android:id="@+id/captureButton"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:text="拍照"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/switchCameraButton"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:text="🔄"
+                android:textSize="24sp"
+                android:layout_marginStart="20dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-</FrameLayout>
+</LinearLayout>
