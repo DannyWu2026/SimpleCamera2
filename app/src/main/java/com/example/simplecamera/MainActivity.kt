@@ -3,7 +3,6 @@ package com.example.simplecamera
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.graphics.PointF
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -18,7 +17,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -26,12 +24,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private var imageCapture: ImageCapture? = null
     private var cameraProvider: ProcessCameraProvider? = null
-    private lateinit var cameraExecutor: ExecutorService
 
-    // 摄像头相关
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var flashMode = ImageCapture.FLASH_MODE_OFF
 
+    private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var switchCameraButton: Button
 
@@ -48,14 +45,10 @@ class MainActivity : AppCompatActivity() {
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
-
         // 点击屏幕对焦
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_UP) {
-                val x = event.x
-                val y = event.y
-                focusOnTouch(x, y)
+                focusOnTouch(event.x, event.y)
             }
             true
         }
@@ -120,18 +113,17 @@ class MainActivity : AppCompatActivity() {
     private fun bindCameraUseCases() {
         val provider = cameraProvider ?: return
 
-        // 解绑所有用例
         provider.unbindAll()
 
-        // 创建预览用例
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
 
-        // 创建拍照用例
+        // 创建拍照用例 - 最高质量设置
         imageCapture = ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .setFlashMode(flashMode)
+            .setJpegQuality(100)
             .build()
 
         val cameraSelector = CameraSelector.Builder()
@@ -150,27 +142,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 点击屏幕对焦
     private fun focusOnTouch(x: Float, y: Float) {
         val camera = cameraProvider?.getCamera(CameraSelector.Builder()
             .requireLensFacing(lensFacing)
             .build())
         if (camera == null) return
 
-        // 将屏幕坐标转换为 MeteringPoint 坐标
         val meteringPointFactory = previewView.meteringPointFactory
         val point = meteringPointFactory.createPoint(x, y)
-
-        // 创建对焦和测光动作
-        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
-            .build()
+        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF).build()
 
         camera.cameraControl.startFocusAndMetering(action)
-        // 显示对焦反馈
         Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
     }
 
-    // 切换闪光灯模式
     private fun cycleFlashMode() {
         flashMode = when (flashMode) {
             ImageCapture.FLASH_MODE_OFF -> {
@@ -192,7 +177,6 @@ class MainActivity : AppCompatActivity() {
         imageCapture?.flashMode = flashMode
     }
 
-    // 切换摄像头
     private fun switchCamera() {
         lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
             Toast.makeText(this, "切换到前置摄像头", Toast.LENGTH_SHORT).show()
@@ -239,9 +223,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cameraExecutor.shutdown()
+        if (::cameraProvider.isInitialized) {
+            cameraProvider?.unbindAll()
+        }
     }
-
-    // 需要声明 captureButton 变量
-    private lateinit var captureButton: Button
 }
