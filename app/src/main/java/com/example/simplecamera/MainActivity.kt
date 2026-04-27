@@ -231,7 +231,7 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    Toast.makeText(this@MainActivity, "照片已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "帅哥拍一张", Toast.LENGTH_SHORT).show()
                 }
 
                 override fun onError(exception: ImageCaptureException) {
