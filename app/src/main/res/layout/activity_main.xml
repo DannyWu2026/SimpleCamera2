@@ -8,13 +8,44 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <Button
-        android:id="@+id/captureButton"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="32dp"
-        android:text="拍照"
-        android:textSize="16sp" />
+    <!-- 底部按钮容器 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp"
+        android:background="#66000000">
+
+        <!-- 闪光灯按钮 -->
+        <Button
+            android:id="@+id/flashButton"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="⚡"
+            android:textSize="24sp"
+            android:layout_marginEnd="20dp"
+            android:background="@android:drawable/btn_default" />
+
+        <!-- 拍照按钮 -->
+        <Button
+            android:id="@+id/captureButton"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:text="拍照"
+            android:textSize="16sp"
+            android:layout_marginEnd="20dp" />
+
+        <!-- 切换摄像头按钮 -->
+        <Button
+            android:id="@+id/switchCameraButton"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="🔄"
+            android:textSize="24sp"
+            android:background="@android:drawable/btn_default" />
+
+    </LinearLayout>
 
 </FrameLayout>
