@@ -6,7 +6,9 @@
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:scaleType="fitCenter" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,7 +17,7 @@
         android:orientation="horizontal"
         android:gravity="center"
         android:padding="16dp"
-        android:background="#66000000">
+        android:background="#000000">
 
         <Button
             android:id="@+id/flashButton"
