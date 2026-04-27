@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
 
-        // 创建一个临时黑色 View 用于闪烁（放在预览层上方）
+        // 闪烁黑色层
         flashViewTemp = View(this)
         flashViewTemp.setBackgroundColor(0xFF000000.toInt())
         flashViewTemp.visibility = View.GONE
@@ -70,9 +70,6 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ))
-
-        // 设置 PreviewView 高度为屏幕宽度的 3/4（4:3）
-        adjustPreviewViewSize()
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -83,17 +80,9 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        captureButton.setOnClickListener {
-            takePhoto()
-        }
-
-        flashButton.setOnClickListener {
-            cycleFlashMode()
-        }
-
-        switchCameraButton.setOnClickListener {
-            switchCamera()
-        }
+        captureButton.setOnClickListener { takePhoto() }
+        flashButton.setOnClickListener { cycleFlashMode() }
+        switchCameraButton.setOnClickListener { switchCamera() }
 
         if (checkCameraPermission()) {
             startCamera()
@@ -102,33 +91,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun adjustPreviewViewSize() {
-        val screenWidth = resources.displayMetrics.widthPixels
-        val previewHeight = screenWidth * 3 / 4  // 4:3 比例
-
-        val layoutParams = previewView.layoutParams
-        layoutParams.height = previewHeight
-        previewView.layoutParams = layoutParams
-    }
-
     private fun checkCameraPermission(): Boolean {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestCameraPermission() {
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(Manifest.permission.CAMERA),
-            CAMERA_PERMISSION_CODE
-        )
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_CODE)
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -142,7 +114,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
             bindCameraUseCases()
@@ -151,7 +122,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindCameraUseCases() {
         val provider = cameraProvider ?: return
-
         provider.unbindAll()
 
         val preview = Preview.Builder().build().also {
@@ -170,26 +140,17 @@ class MainActivity : AppCompatActivity() {
             CameraSelector.DEFAULT_FRONT_CAMERA
         }
 
-        camera = provider.bindToLifecycle(
-            this,
-            cameraSelector,
-            preview,
-            imageCapture
-        )
+        camera = provider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
     }
 
     private fun focusOnTouch(x: Float, y: Float) {
         val camera = this.camera ?: return
-
         try {
-            val meteringPointFactory = previewView.meteringPointFactory
-            val point = meteringPointFactory.createPoint(x, y)
-
+            val point = previewView.meteringPointFactory.createPoint(x, y)
             val action = FocusMeteringAction.Builder(point)
                 .addPoint(point, FocusMeteringAction.FLAG_AF)
                 .addPoint(point, FocusMeteringAction.FLAG_AE)
                 .build()
-
             camera.cameraControl.startFocusAndMetering(action)
             showMessage("对焦中...")
         } catch (e: Exception) {
@@ -232,15 +193,12 @@ class MainActivity : AppCompatActivity() {
     private fun flashPreview() {
         flashViewTemp.visibility = View.VISIBLE
         flashRunnable?.let { flashHandler.removeCallbacks(it) }
-        flashRunnable = Runnable {
-            flashViewTemp.visibility = View.GONE
-        }
+        flashRunnable = Runnable { flashViewTemp.visibility = View.GONE }
         flashHandler.postDelayed(flashRunnable!!, FLASH_DURATION)
     }
 
     private fun takePhoto() {
         val imageCapture = imageCapture ?: return
-
         flashPreview()
 
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -258,37 +216,23 @@ class MainActivity : AppCompatActivity() {
             contentValues
         ).build()
 
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(this),
+        imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {}
-
                 override fun onError(exception: ImageCaptureException) {
                     showMessage("拍照失败: ${exception.message}")
                 }
-            }
-        )
+            })
     }
 
     private fun showMessage(message: String) {
         val currentTime = System.currentTimeMillis()
-
-        if (message == lastMessageText && currentTime - lastMessageTime < messageDelay) {
-            return
-        }
-
+        if (message == lastMessageText && currentTime - lastMessageTime < messageDelay) return
         lastMessageTime = currentTime
         lastMessageText = message
-
         Handler(Looper.getMainLooper()).post {
-            val snackbar = Snackbar.make(
-                findViewById(android.R.id.content),
-                message,
-                Snackbar.LENGTH_SHORT
-            )
-            snackbar.setAnchorView(R.id.captureButton)
-            snackbar.show()
+            Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT)
+                .setAnchorView(R.id.captureButton).show()
         }
     }
 
