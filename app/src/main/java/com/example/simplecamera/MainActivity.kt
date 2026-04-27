@@ -5,8 +5,11 @@ import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.view.MotionEvent
+import android.view.View
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -15,6 +18,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -34,6 +38,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var flashButton: Button
     private lateinit var switchCameraButton: Button
+
+    // 防抖相关
+    private var lastMessageTime = 0L
+    private var lastMessageText = ""
+    private val messageDelay = 300L  // 300毫秒内相同消息不重复显示
 
     companion object {
         private const val CAMERA_PERMISSION_CODE = 100
@@ -147,32 +156,25 @@ class MainActivity : AppCompatActivity() {
             preview,
             imageCapture
         )
-
     }
 
     // 触屏对焦
     private fun focusOnTouch(x: Float, y: Float) {
         val camera = this.camera ?: return
-        val imageCapture = this.imageCapture ?: return
 
         try {
-            // 将屏幕坐标转换为对焦点坐标
             val meteringPointFactory = previewView.meteringPointFactory
             val point = meteringPointFactory.createPoint(x, y)
 
-            // 创建对焦动作（对焦 + 测光）
             val action = FocusMeteringAction.Builder(point)
                 .addPoint(point, FocusMeteringAction.FLAG_AF)
                 .addPoint(point, FocusMeteringAction.FLAG_AE)
                 .build()
 
-            // 执行对焦
             camera.cameraControl.startFocusAndMetering(action)
-            // 显示对焦反馈
-            Toast.makeText(this, "对焦中...", Toast.LENGTH_SHORT).show()
+            showMessage("对焦中...")
         } catch (e: Exception) {
-            // 某些设备可能不支持
-            Toast.makeText(this, "不支持触屏对焦", Toast.LENGTH_SHORT).show()
+            showMessage("不支持触屏对焦")
         }
     }
 
@@ -180,17 +182,17 @@ class MainActivity : AppCompatActivity() {
         flashMode = when (flashMode) {
             ImageCapture.FLASH_MODE_OFF -> {
                 flashButton.text = "🔆"
-                Toast.makeText(this, "闪光灯: 开启", Toast.LENGTH_SHORT).show()
+                showMessage("闪光灯: 开启")
                 ImageCapture.FLASH_MODE_ON
             }
             ImageCapture.FLASH_MODE_ON -> {
                 flashButton.text = "✨"
-                Toast.makeText(this, "闪光灯: 自动", Toast.LENGTH_SHORT).show()
+                showMessage("闪光灯: 自动")
                 ImageCapture.FLASH_MODE_AUTO
             }
             else -> {
                 flashButton.text = "⚡"
-                Toast.makeText(this, "闪光灯: 关闭", Toast.LENGTH_SHORT).show()
+                showMessage("闪光灯: 关闭")
                 ImageCapture.FLASH_MODE_OFF
             }
         }
@@ -199,10 +201,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchCamera() {
         lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
-            Toast.makeText(this, "切换到前置摄像头", Toast.LENGTH_SHORT).show()
+            showMessage("切换到前置摄像头")
             CameraSelector.LENS_FACING_FRONT
         } else {
-            Toast.makeText(this, "切换到后置摄像头", Toast.LENGTH_SHORT).show()
+            showMessage("切换到后置摄像头")
             CameraSelector.LENS_FACING_BACK
         }
         bindCameraUseCases()
@@ -231,14 +233,38 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    Toast.makeText(this@MainActivity, "帅哥拍一张", Toast.LENGTH_SHORT).show()
+                    showMessage("照片已保存")
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    Toast.makeText(this@MainActivity, "拍照失败: ${exception.message}", Toast.LENGTH_SHORT).show()
+                    showMessage("拍照失败: ${exception.message}")
                 }
             }
         )
+    }
+
+    // Snackbar + 防抖显示消息
+    private fun showMessage(message: String) {
+        val currentTime = System.currentTimeMillis()
+        
+        // 防抖：相同消息在短时间内不重复显示
+        if (message == lastMessageText && currentTime - lastMessageTime < messageDelay) {
+            return
+        }
+        
+        lastMessageTime = currentTime
+        lastMessageText = message
+        
+        // 在主线程显示 Snackbar
+        Handler(Looper.getMainLooper()).post {
+            val snackbar = Snackbar.make(
+                findViewById(android.R.id.content),
+                message,
+                Snackbar.LENGTH_SHORT
+            )
+            snackbar.setAnchorView(R.id.captureButton)  // 将 Snackbar 显示在按钮上方
+            snackbar.show()
+        }
     }
 
     override fun onDestroy() {
