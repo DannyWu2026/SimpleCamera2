@@ -28,7 +28,7 @@ import java.util.concurrent.Executors
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
-    private lateinit var flashView: View
+    private lateinit var flashViewTemp: View
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
@@ -41,12 +41,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var flashButton: Button
     private lateinit var switchCameraButton: Button
 
-    // 防抖相关
     private var lastMessageTime = 0L
     private var lastMessageText = ""
     private val messageDelay = 300L
 
-    // 闪烁动画 Handler
     private val flashHandler = Handler(Looper.getMainLooper())
     private var flashRunnable: Runnable? = null
 
@@ -60,17 +58,24 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         previewView = findViewById(R.id.previewView)
-        flashView = findViewById(R.id.flashView)
         captureButton = findViewById(R.id.captureButton)
         flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
 
-        // 设置 PreviewView 高度为屏幕宽度的 3/4（4:3 比例），并顶部对齐
+        // 创建一个临时黑色 View 用于闪烁（放在预览层上方）
+        flashViewTemp = View(this)
+        flashViewTemp.setBackgroundColor(0xFF000000.toInt())
+        flashViewTemp.visibility = View.GONE
+        (previewView.parent as ViewGroup).addView(flashViewTemp, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+
+        // 设置 PreviewView 高度为屏幕宽度的 3/4（4:3）
         adjustPreviewViewSize()
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // 点击屏幕对焦
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_UP) {
                 focusOnTouch(event.x, event.y)
@@ -98,10 +103,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun adjustPreviewViewSize() {
-        // 获取屏幕宽度
         val screenWidth = resources.displayMetrics.widthPixels
-        // 4:3 比例，高度 = 宽度 * 3 / 4
-        val previewHeight = screenWidth * 3 / 4
+        val previewHeight = screenWidth * 3 / 4  // 4:3 比例
 
         val layoutParams = previewView.layoutParams
         layoutParams.height = previewHeight
@@ -227,10 +230,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun flashPreview() {
-        flashView.visibility = View.VISIBLE
+        flashViewTemp.visibility = View.VISIBLE
         flashRunnable?.let { flashHandler.removeCallbacks(it) }
         flashRunnable = Runnable {
-            flashView.visibility = View.GONE
+            flashViewTemp.visibility = View.GONE
         }
         flashHandler.postDelayed(flashRunnable!!, FLASH_DURATION)
     }
@@ -259,9 +262,7 @@ class MainActivity : AppCompatActivity() {
             outputOptions,
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    // 不显示弹窗
-                }
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {}
 
                 override fun onError(exception: ImageCaptureException) {
                     showMessage("拍照失败: ${exception.message}")
