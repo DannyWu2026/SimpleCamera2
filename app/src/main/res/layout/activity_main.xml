@@ -1,11 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
-    <SurfaceView
-        android:id="@+id/surfaceView"
+    <!-- 预览画面：宽度填满，高度自动（由相机画面决定） -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter" />
 
-</FrameLayout>
+    <!-- 底部黑色区域：放按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp"
+        android:background="#000000">
+
+        <Button
+            android:id="@+id/flashButton"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="⚡"
+            android:textSize="24sp"
+            android:layout_marginEnd="20dp" />
+
+        <Button
+            android:id="@+id/captureButton"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:text="拍照"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/switchCameraButton"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="🔄"
+            android:textSize="24sp"
+            android:layout_marginStart="20dp" />
+
+    </LinearLayout>
+
+</LinearLayout>
